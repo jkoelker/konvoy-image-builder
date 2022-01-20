@@ -1,2 +1,53 @@
 ---
-- import_playbook: _list-images.yaml
+- hosts: localhost
+  name: Setup Container
+  gather_facts: false
+
+  tasks:
+    - set_fact:
+        container_name: "{{
+          lookup('password', '/dev/null chars=ascii_letters')
+        }}"
+
+    - docker_container:
+        name: "{{ container_name }}"
+        image: registry.access.redhat.com/ubi8/ubi:latest
+        auto_remove: yes
+        command: tail -f /dev/null
+
+    - add_host:
+        name: "{{ container_name }}"
+        ansible_connection: docker
+        changed_when: false
+        override_os_family: "RedHat"
+        ansible_python_interpreter: /usr/libexec/platform-python
+
+- hosts: "{{ hostvars['localhost'].container_name }}"
+  pre_tasks:
+    - include_vars: vars/centos/centos-7.yaml
+      when: os_family == "RedHat"
+    - include_vars: vars/flatcar/flatcar.yaml
+      when: os_family == "Flatcar"
+  roles:
+    - role: packages
+    - role: version
+
+  tasks:
+    - name: list images
+      shell: "echo {{ item }} >> ../images.out"
+      loop: "{{
+        kubernetes_images +
+        containerd_images +
+        control_plane_images +
+        extra_images +
+        aws_images
+      }}"
+      changed_when: False
+
+- hosts: localhost
+  name: Remove Container
+  tasks:
+    - docker_container:
+        name: "{{ container_name }}"
+        state: absent
+        force_kill: yes
