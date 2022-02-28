@@ -17,6 +17,7 @@ import (
 	terminal "golang.org/x/term"
 
 	"github.com/mesosphere/konvoy-image-builder/cmd/konvoy-image-wrapper/image"
+	"github.com/mesosphere/konvoy-image-builder/pkg/app"
 )
 
 const (
@@ -36,6 +37,8 @@ const (
 	envAWSSTSRegionalEndpoints = "AWS_STS_REGIONAL_ENDPOINTS"
 	envAWSSDKLoadConfig        = "AWS_SDK_LOAD_CONFIG"
 	envAWSCABundle             = "AWS_CA_BUNDLE"
+
+	envAzureLocation = "AZURE_LOCATION"
 
 	envHTTPSProxy = "HTTPS_PROXY"
 	envHTTPProxy  = "HTTP_PROXY"
@@ -161,6 +164,25 @@ func (r *Runner) setAWSEnv() error {
 	}
 	if caBundle != "" {
 		r.addBindVolume(caBundle, caBundle)
+	}
+
+	return nil
+}
+
+func (r *Runner) setAzureEnv() error {
+	awsEnvVars := []string{
+		envAzureLocation,
+		app.AzureClientIDEnvVariable,
+		app.AzureClientSecretEnvVariable,
+		app.AzureSubscriptionIDEnvVariable,
+		app.AzureTenantIDEnvVariable,
+	}
+
+	for _, env := range awsEnvVars {
+		value, found := os.LookupEnv(env)
+		if found {
+			r.env[env] = value
+		}
 	}
 
 	return nil
@@ -414,6 +436,11 @@ func (r *Runner) Run(args []string) error {
 	f.Close()
 
 	err = r.setAWSEnv()
+	if err != nil {
+		return err
+	}
+
+	err = r.setAzureEnv()
 	if err != nil {
 		return err
 	}
